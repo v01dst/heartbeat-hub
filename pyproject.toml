@@ -1,0 +1,10 @@
+[project]
+name = "heartbeat-hub"
+version = "1.0.0"
+description = "Dead man's switch for cron jobs — pure Python stdlib"
+authors = [{ name = "v01dst" }]
+license = "MIT"
+requires-python = ">=3.10"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

@@ -1,0 +1,27 @@
+services:
+  heartbeat-hub:
+    build: .
+    image: v01dst/heartbeat-hub:1.0.0
+    container_name: heartbeat-hub
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      PORT: 3000
+      DB_PATH: /app/data/heartbeats.db
+      ALERT_WEBHOOK: ${ALERT_WEBHOOK:-}
+    volumes:
+      - heartbeat-data:/app/data
+    healthcheck:
+      test:
+        - CMD
+        - python3
+        - -c
+        - "import urllib.request;urllib.request.urlopen('http://localhost:3000/health',timeout=3)"
+      interval: 30s
+      timeout: 5s
+      start_period: 5s
+      retries: 3
+
+volumes:
+  heartbeat-data:
