@@ -114,3 +114,35 @@ class ApiTestCase(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
+
+class PatchSourceTests(ApiTestCase):
+
+    def test_patch_period_and_grace(self):
+        _, created = self.request("POST", "/sources", {"name": "job", "period": 60, "grace": 10})
+        key = created["key"]
+        status, body = self.request("PATCH", f"/sources/{key}", {"period": 120, "grace": 30})
+        self.assertEqual(status, 200)
+        self.assertEqual(body["period"], 120)
+        self.assertEqual(body["grace"], 30)
+        self.assertEqual(body["name"], "job")
+
+    def test_patch_name(self):
+        _, created = self.request("POST", "/sources", {"name": "job"})
+        key = created["key"]
+        status, body = self.request("PATCH", f"/sources/{key}", {"name": "renamed"})
+        self.assertEqual(status, 200)
+        self.assertEqual(body["name"], "renamed")
+
+    def test_patch_unknown_404(self):
+        status, _ = self.request("PATCH", "/sources/nope", {"name": "x"})
+        self.assertEqual(status, 404)
+
+    def test_patch_validation(self):
+        _, created = self.request("POST", "/sources", {"name": "v"})
+        key = created["key"]
+        status, _ = self.request("PATCH", f"/sources/{key}", {"period": 5})
+        self.assertEqual(status, 400)
+        status, _ = self.request("PATCH", f"/sources/{key}", {"grace": -2})
+        self.assertEqual(status, 400)
+        status, _ = self.request("PATCH", f"/sources/{key}", {"name": "  "})
+        self.assertEqual(status, 400)

@@ -66,6 +66,20 @@ class Store:
             return None
         return {"key": row[0], "name": row[1], "period": row[2], "grace": row[3]}
 
+    def update_source(self, key: str, name: str | None = None, period: int | None = None, grace: int | None = None) -> dict[str, Any] | None:
+        src = self.get_source(key)
+        if not src:
+            return None
+        new_name = name if name is not None else src["name"]
+        new_period = period if period is not None else src["period"]
+        new_grace = grace if grace is not None else src["grace"]
+        self.db.execute(
+            "UPDATE sources SET name = ?, period_seconds = ?, grace_seconds = ? WHERE key = ?",
+            (new_name, new_period, new_grace, key),
+        )
+        self.db.commit()
+        return self.get_source(key)
+
     def delete_source(self, key: str) -> bool:
         cur = self.db.execute("DELETE FROM sources WHERE key = ?", (key,))
         self.db.commit()
@@ -251,6 +265,37 @@ class Handler(BaseHTTPRequestHandler):
             self._json(200, {"ok": True, "status": "up"})
         else:
             self._json(404, {"error": "not found"})
+
+    def do_PATCH(self) -> None:  # noqa: N802
+        parsed = urlparse(self.path)
+        path = parsed.path.rstrip("/")
+        if not path.startswith("/sources/"):
+            self._json(404, {"error": "not found"})
+            return
+        key = path.split("/")[2]
+        if not self.store.get_source(key):
+            self._json(404, {"error": f"unknown source '{key}'"})
+            return
+        body = self._read_json()
+        name = body.get("name")
+        period = body.get("period")
+        grace = body.get("grace")
+        if name is not None and (not isinstance(name, str) or not name.strip()):
+            self._json(400, {"error": "name must be a non-empty string"})
+            return
+        if period is not None and (not isinstance(period, int) or period < 30 or period > 2_592_000):
+            self._json(400, {"error": "period must be int in [30, 2592000]"})
+            return
+        if grace is not None and (not isinstance(grace, int) or grace < 0 or grace > 86_400):
+            self._json(400, {"error": "grace must be int in [0, 86400]"})
+            return
+        updated = self.store.update_source(
+            key,
+            name=name.strip() if isinstance(name, str) else None,
+            period=period,
+            grace=grace,
+        )
+        self._json(200, updated)
 
     def do_DELETE(self) -> None:  # noqa: N802
         path = urlparse(self.path).path.rstrip("/")
