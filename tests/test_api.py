@@ -146,3 +146,27 @@ class PatchSourceTests(ApiTestCase):
         self.assertEqual(status, 400)
         status, _ = self.request("PATCH", f"/sources/{key}", {"name": "  "})
         self.assertEqual(status, 400)
+
+class HistoryTests(ApiTestCase):
+    def test_history_endpoint(self):
+        _, created = self.request("POST", "/sources", {"name": "hist"})
+        key = created["key"]
+        for _ in range(3):
+            self.request("POST", f"/ping/{key}")
+        status, body = self.request("GET", f"/sources/{key}/history")
+        self.assertEqual(status, 200)
+        self.assertEqual(len(body["history"]), 3)
+        self.assertTrue(all("receivedAt" in h and "secAgo" in h for h in body["history"]))
+
+    def test_history_limit(self):
+        _, created = self.request("POST", "/sources", {"name": "hist2"})
+        key = created["key"]
+        for _ in range(5):
+            self.request("POST", f"/ping/{key}")
+        status, body = self.request("GET", f"/sources/{key}/history?limit=2")
+        self.assertEqual(status, 200)
+        self.assertEqual(len(body["history"]), 2)
+
+    def test_history_unknown_source_404(self):
+        status, _ = self.request("GET", "/sources/nope/history")
+        self.assertEqual(status, 404)

@@ -107,6 +107,17 @@ class Store:
         ).fetchone()
         return float(row[0]) if row else None
 
+    def recent_pings(self, key: str, limit: int = 20) -> list[dict]:
+        rows = self.db.execute(
+            "SELECT received_at, epoch FROM pings WHERE key = ? ORDER BY id DESC LIMIT ?",
+            (key, limit),
+        ).fetchall()
+        now = time.time()
+        return [
+            {"receivedAt": r[0], "secAgo": int(now - r[1])}
+            for r in rows
+        ]
+
     def ping_count(self, key: str) -> int:
         return int(
             self.db.execute(
@@ -212,6 +223,20 @@ class Handler(BaseHTTPRequestHandler):
                 entry["totalPings"] = self.store.ping_count(s["key"])
                 sources.append(entry)
             self._json(200, {"sources": sources})
+        elif path.startswith("/sources/") and path.endswith("/history"):
+            key = path.split("/")[2]
+            src = self.store.get_source(key)
+            if not src:
+                self._json(404, {"error": f"unknown source '{key}'"})
+                return
+            parsed_q = dict(
+                pair.split("=", 1)
+                for pair in (parsed.query.split("&") if parsed.query else [])
+                if "=" in pair
+            )
+            limit = int(parsed_q.get("limit", "20"))
+            limit = max(1, min(limit, 200))
+            self._json(200, {"key": key, "history": self.store.recent_pings(key, limit)})
         elif path.startswith("/status/"):
             key = path.split("/")[2]
             src = self.store.get_source(key)
